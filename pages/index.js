@@ -1,3 +1,4 @@
+// pages/Login.js
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import styles from '../styles/Login.module.css';
@@ -23,10 +24,24 @@ export default function LoginPage() {
 
       if (data.success) {
         localStorage.setItem('admin', JSON.stringify(data.admin));
-        router.push('/dashboard');
+
+        // Role-based routing
+        switch (data.admin.role) {
+          case 'SuperAdmin':
+          case 'Admin':
+            router.push('/dashboard'); // full access dashboard
+            break;
+          case 'Moderator':
+            router.push('/moderator-dashboard'); // or a separate page for moderators
+            break;
+          default:
+            router.push('/'); // fallback
+        }
+
       } else {
         setError(data.message);
       }
+
     } catch (err) {
       console.error(err);
       setError('Something went wrong. Please try again.');

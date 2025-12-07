@@ -1,51 +1,48 @@
 // pages/api/admin-login.js
-import { connectToDatabase } from '../../lib/db';
-import bcrypt from 'bcryptjs'; // for hashed passwords
+import { connectToMongo } from '../../lib/mongo';
 
 export default async function handler(req, res) {
+  // Only allow POST requests
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+    return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
   const { username, password } = req.body;
 
+  // Validate input
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: 'Username and password are required' });
+  }
+
   try {
-    const connection = await connectToDatabase();
+    // Connect to MongoDB
+    const { db } = await connectToMongo();
 
-    // fetch admin from database
-    const [rows] = await connection.execute(
-      'SELECT * FROM admin WHERE Username = ? AND Status = "Active"',
-      [username]
-    );
+    // Find an active admin with the given username
+    const admin = await db.collection('admins').findOne({ username, status: 'Active' });
 
-    await connection.end();
-
-    if (rows.length === 0) {
+    if (!admin) {
+      // Admin not found or inactive
       return res.status(401).json({ success: false, message: 'Admin not found or inactive' });
     }
 
-    const admin = rows[0];
+    // Check password (plain-text)
+    if (password !== admin.password) {
+      return res.status(401).json({ success: false, message: 'Incorrect password' });
+    }
 
-    // check password
-   // check password
-const isValid = password === admin.Password; // compare plain text directly
-if (!isValid) {
-  return res.status(401).json({ success: false, message: 'Incorrect password' });
-}
-
-    // optionally, you can include role type in response
-    res.status(200).json({ 
-      success: true, 
-      message: 'Login successful', 
+    // Success: return admin details
+    res.status(200).json({
+      success: true,
       admin: {
-        AdminID: admin.AdminID,
-        Username: admin.Username,
-        RoleType: admin.RoleType
+        _id: admin._id,
+        username: admin.username,
+        role: admin.role
       }
     });
 
   } catch (error) {
-    console.error(error);
+    console.error('Login error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 }
