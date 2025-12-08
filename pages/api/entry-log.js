@@ -1,4 +1,4 @@
-import { connectToMongo } from '../../lib/mongo';
+import clientPromise from "@/lib/mongodb"; // your MongoDB connection helper
 import { ObjectId } from "mongodb";
 
 export default async function handler(req, res) {
