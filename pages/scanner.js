@@ -81,31 +81,31 @@ export default function Scanner() {
   }, [scanning]);
 
   const submitQR = async (vehicleID) => {
-    setLoading(true);
-    setMessage("");
+  setLoading(true);
+  setMessage("");
 
-    try {
-      const res = await fetch("/api/register/entry-log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vehicleID }),
-      });
+  try {
+    const res = await fetch("/api/entry-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vehicleID }),
+    });
 
-      if (!res.ok) {
-        const err = await res.json();
-        setMessage(`⚠️ ${err.message || "Server rejected request"}`);
-      } else {
-        const data = await res.json();
-        setMessage(`✅ ${data.message}`);
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage("❌ Server error");
-    } finally {
-      setLoading(false);
-      setScanning(false); // allow scanning again
+    if (!res.ok) {
+      const err = await res.json();
+      setMessage(`⚠️ ${err.message || "Server rejected request"}`);
+    } else {
+      const data = await res.json();
+      setMessage(`✅ Entry logged for ${data.name}`);
     }
-  };
+  } catch (err) {
+    console.error(err);
+    setMessage("❌ Server error");
+  } finally {
+    setLoading(false);
+    setScanning(false); // allow scanning again
+  }
+};
 
   return (
     <div style={{ padding: "20px", textAlign: "center" }}>
