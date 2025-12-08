@@ -17,22 +17,25 @@ export default function Scanner() {
     let stream;
 
     const startCamera = async () => {
-      try {
-        const video = videoRef.current;
-        if (!video) return;
+      const video = videoRef.current;
+      if (!video) return;
 
-        // Try back camera first, fallback to any camera
+      try {
+        // Try back camera first
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: { exact: "environment" } },
           });
         } catch {
+          // Fallback to any available camera
           stream = await navigator.mediaDevices.getUserMedia({ video: true });
         }
 
-        // Camera successfully accessed
+        if (!stream) throw new Error("No camera found");
+
+        // Camera successfully obtained
         setCameraAvailable(true);
-        setMessage(""); // Clear any previous camera errors
+        setMessage("");
 
         video.srcObject = stream;
         await video.play();
@@ -66,9 +69,11 @@ export default function Scanner() {
 
         animationFrameId = requestAnimationFrame(scanLoop);
       } catch (err) {
-        console.error(err);
+        console.error("Camera error:", err);
         setCameraAvailable(false);
-        setMessage("❌ Cannot access camera. Check permissions or if another app is using it.");
+        setMessage(
+          "❌ Cannot access camera. Check permissions or if another app is using it."
+        );
       }
     };
 
@@ -80,32 +85,65 @@ export default function Scanner() {
     };
   }, [scanning]);
 
+  // -------- Submit QR code to server --------
   const submitQR = async (vehicleID) => {
-  setLoading(true);
-  setMessage("");
+    setLoading(true);
+    setMessage("");
 
-  try {
-    const res = await fetch("/api/entry-log", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ vehicleID }),
-    });
+    try {
+      const res = await fetch("/api/entry-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicleID }),
+      });
 
-    if (!res.ok) {
-      const err = await res.json();
-      setMessage(`⚠️ ${err.message || "Server rejected request"}`);
-    } else {
-      const data = await res.json();
-      setMessage(`✅ Entry logged for ${data.name}`);
+      if (!res.ok) {
+        const err = await res.json();
+        setMessage(`⚠️ ${err.message || "Server rejected request"}`);
+      } else {
+        const data = await res.json();
+        setMessage(`✅ Entry logged for ${data.name}`);
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage("❌ Server error");
+    } finally {
+      setLoading(false);
+      setScanning(false);
     }
-  } catch (err) {
-    console.error(err);
-    setMessage("❌ Server error");
-  } finally {
-    setLoading(false);
-    setScanning(false); // allow scanning again
-  }
-};
+  };
+
+  // -------- Upload QR image function --------
+  const handleUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const img = new Image();
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      img.src = e.target.result;
+      img.onload = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, canvas.width, canvas.height);
+
+        if (code) {
+          setScanResult(code.data);
+          submitQR(code.data);
+        } else {
+          setMessage("❌ Could not read QR code from the image.");
+        }
+      };
+    };
+
+    reader.readAsDataURL(file);
+  };
 
   return (
     <div style={{ padding: "20px", textAlign: "center" }}>
@@ -126,8 +164,13 @@ export default function Scanner() {
           <canvas ref={canvasRef} style={{ display: "none" }} />
         </>
       ) : (
-        <p style={{ color: "red" }}>❌ Camera not available on this device.</p>
+        <p style={{ color: "red" }}>
+          ❌ Camera not available on this device.
+        </p>
       )}
+
+      <p>or upload a QR code image:</p>
+      <input type="file" accept="image/*" onChange={handleUpload} />
 
       {loading && <p>Processing...</p>}
       {scanResult && <p>Scanned QR: {scanResult}</p>}
