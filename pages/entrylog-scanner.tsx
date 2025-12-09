@@ -17,6 +17,10 @@ export default function EntrylogScannerPage() {
         return;
       }
 
+      // 🔒 lock to prevent rapid multiple scans
+      let scanLocked = false;
+      const COOLDOWN_MS = 3000; // 3 seconds; change if you want longer/shorter
+
       function setMessage(msg: string, isError: boolean) {
         const el = document.getElementById("message");
         if (!el) return;
@@ -39,7 +43,10 @@ export default function EntrylogScannerPage() {
           try {
             data = JSON.parse(text);
           } catch (e) {
-            setMessage("Server returned non-JSON: " + text.slice(0, 100), true);
+            setMessage(
+              "Server returned non-JSON: " + text.slice(0, 100),
+              true
+            );
             return;
           }
 
@@ -52,13 +59,30 @@ export default function EntrylogScannerPage() {
         } catch (err) {
           console.error(err);
           setMessage("❌ Network error calling /api/entrylog-scan", true);
+        } finally {
+          // ⏳ after processing finished, start cooldown
+          setTimeout(() => {
+            scanLocked = false; // 🔓 allow next scan
+          }, COOLDOWN_MS);
         }
       }
 
       function onScanSuccess(decodedText: string) {
-        const input = document.getElementById("vehicleId") as HTMLInputElement | null;
+        // if we're in cooldown, ignore this scan
+        if (scanLocked) return;
+        scanLocked = true; // lock immediately
+
+        const input = document.getElementById(
+          "vehicleId"
+        ) as HTMLInputElement | null;
         if (input) input.value = decodedText;
-        setMessage("Scanned ID: " + decodedText + " – processing...", false);
+
+        setMessage(
+          "Scanned ID: " + decodedText + " – processing...",
+          false
+        );
+
+        // fire async processing (cooldown unlock happens in finally)
         processScan(decodedText);
       }
 
@@ -78,7 +102,10 @@ export default function EntrylogScannerPage() {
     document.body.appendChild(script);
 
     return () => {
-      document.body.removeChild(script);
+      // 🧹 avoid NotFoundError if script already removed
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
     };
   }, []);
 

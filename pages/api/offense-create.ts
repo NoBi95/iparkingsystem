@@ -1,34 +1,6 @@
 // pages/api/offense-create.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import clientPromise from "../../lib/mongo";
-import { Db } from "mongodb";
-
-async function getNextSequence(db: Db, name: string): Promise<number> {
-  const counters = db.collection<any>("counters");
-
-  const result = await counters.findOneAndUpdate(
-    { _id: name },
-    { $inc: { seq: 1 } },
-    {
-      upsert: true,
-    }
-  );
-
-  const prev = result?.value as any;
-
-  // ⚠️ If there was no previous document (first time), result.value can be null.
-  // In that case, the new seq in DB is 1.
-  if (!prev || typeof prev.seq !== "number") {
-    // Make sure the stored value is 1
-    await counters.updateOne({ _id: name }, { $set: { seq: 1 } });
-    return 1;
-  }
-
-  // With no returnDocument option, result.value is the *previous* doc
-  // and we just increment it in code as well.
-  return prev.seq + 1;
-}
-
 
 export default async function handler(
   req: NextApiRequest,
@@ -93,11 +65,23 @@ export default async function handler(
       });
     }
 
-    const offenseId = await getNextSequence(db, "offenses");
+    // ✅ get next integer _id directly from offenses collection
+    const lastOffenseArr = await offensesCol
+      .find({})
+      .sort({ _id: -1 })
+      .limit(1)
+      .toArray();
+
+    const lastOffense = lastOffenseArr[0];
+    const offenseId =
+      lastOffense && typeof lastOffense._id === "number"
+        ? lastOffense._id + 1
+        : 1;
+
     const now = new Date();
 
     const offenseDoc = {
-      _id: offenseId,          // integer _id auto-increment
+      _id: offenseId, // integer _id auto-increment
       vehicleId: vehicle._id,
       status: "Pending",
       penaltyId: penalty._id,
@@ -122,7 +106,6 @@ export default async function handler(
   } catch (err: any) {
     console.error("Error in /api/offense-create:", err);
 
-    // Optional: friendlier duplicate key handling
     if (err?.code === 11000) {
       return res.status(409).json({
         success: false,
