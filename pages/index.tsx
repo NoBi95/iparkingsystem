@@ -1,15 +1,15 @@
-// pages/Login.js
-import { useState } from 'react';
+// pages/index.tsx
+import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/router';
 import styles from '../styles/Login.module.css';
 
-export default function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+export default function IndexPage() {
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [error, setError] = useState<string>('');
   const router = useRouter();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
 
@@ -25,19 +25,17 @@ export default function LoginPage() {
       if (data.success) {
         localStorage.setItem('admin', JSON.stringify(data.admin));
 
-        // Role-based routing
         switch (data.admin.role) {
           case 'SuperAdmin':
           case 'Admin':
-            router.push('/dashboard'); // full access dashboard
+            router.push('/dashboard');
             break;
           case 'Moderator':
-            router.push('/moderator-dashboard'); // or a separate page for moderators
+            router.push('/dashboard');
             break;
           default:
-            router.push('/'); // fallback
+            router.push('/');
         }
-
       } else {
         setError(data.message);
       }
@@ -53,6 +51,7 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className={styles.form}>
         <h2>Login</h2>
         {error && <p className={styles.error}>{error}</p>}
+
         <input
           type="text"
           placeholder="Username"
@@ -60,6 +59,7 @@ export default function LoginPage() {
           onChange={(e) => setUsername(e.target.value)}
           required
         />
+
         <input
           type="password"
           placeholder="Password"
@@ -67,6 +67,7 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+
         <button type="submit">Login</button>
       </form>
     </div>

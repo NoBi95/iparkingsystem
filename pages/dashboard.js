@@ -14,7 +14,7 @@ export default function Dashboard() {
   }, [router]);
 
   const handleManualVisitor = () => router.push('/manual-visitor');
-  const handleEntryLog = () => router.push('/scanner');
+  const handleEntryLog = () => router.push('/entrylog-scanner');
   const handleOffense = () => router.push('/offense');
 
   return (

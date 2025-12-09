@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>EntryLog Scanner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- HTML5 QR code library -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; background:#f1f5f9; margin:0; padding:20px; display:flex; justify-content:center; }
+    .container { max-width:480px;width:100%;background:#fff;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,0.12); }
+    h2 { text-align:center;color:#1e3a8a;margin-bottom:20px; }
+    #reader { width:100%;margin-bottom:15px; }
+    .field { margin:10px 0; }
+    .label { font-size:0.9rem;color:#475569;margin-bottom:4px;display:block; }
+    input { width:100%;padding:8px 10px;border-radius:6px;border:1px solid #cbd5e1;font-size:1rem; }
+    .message { margin-top:12px;text-align:center;font-weight:500; }
+    .success { color:#16a34a; }
+    .error { color:#dc2626; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>EntryLog Scanner</h2>
+    <div id="reader"></div>
+
+    <div class="field">
+      <label class="label">Last Vehicle ID</label>
+      <input id="vehicleId" type="text" readonly />
+    </div>
+
+    <p id="message" class="message"></p>
+  </div>
+
+  <script>
+    function setMessage(msg, isError) {
+      const el = document.getElementById("message");
+      el.textContent = msg;
+      el.className = "message " + (isError ? "error" : "success");
+    }
+
+    async function processScan(vehicleId) {
+      try {
+        const res = await fetch("/api/entrylog-scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vehicleId })
+        });
+
+        const text = await res.text();
+        console.log("RAW RESPONSE:", res.status, text);
+
+        let data;
+        try {
+          data = JSON.parse(text); // Attempt to parse JSON response
+        } catch (e) {
+          setMessage("Server returned non-JSON: " + text.slice(0, 100), true);
+          return;
+        }
+
+        if (data.success) {
+          const mode = data.mode === "exit" ? "Exit" : "Entry";
+          setMessage(`✅ ${mode}: ${data.message}`, false);
+        } else {
+          setMessage(`⚠️ ${data.message || "Unknown error"}`, true);
+        }
+      } catch (err) {
+        console.error(err);
+        setMessage("❌ Network error calling /api/entrylog-scan", true);
+      }
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+      document.getElementById("vehicleId").value = decodedText;
+      setMessage("Scanned ID: " + decodedText + " – processing...", false);
+      processScan(decodedText);  // 👈 sends to backend
+    }
+
+    function onScanFailure(error) {
+      // ignore noisy scan errors
+    }
+
+    const html5QrcodeScanner = new Html5QrcodeScanner(
+      "reader",
+      { fps: 10, qrbox: 250 },
+      false
+    );
+
+    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+  </script>
+</body>
+</html>
