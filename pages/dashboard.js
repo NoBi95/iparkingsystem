@@ -15,7 +15,7 @@ export default function Dashboard() {
 
   const handleManualVisitor = () => router.push('/manual-visitor');
   const handleEntryLog = () => router.push('/entrylog-scanner');
-  const handleOffense = () => router.push('/offense');
+  const handleOffense = () => router.push('/offense-scanner');
 
   return (
     <div className={styles.container}>
