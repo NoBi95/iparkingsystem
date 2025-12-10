@@ -114,42 +114,47 @@ const OffenseScannerPage = () => {
   }
 
   async function handleCreateOffense(penaltyId: number) {
-    if (!vehicle) {
-      setUIMessage("No vehicle loaded.", true);
+  if (!vehicle) {
+    setUIMessage("No vehicle loaded.", true);
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/offense-create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        vehicleId: vehicle.id,
+        penaltyId,
+      }),
+    });
+
+    const text = await res.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error("Non-JSON from /api/offense-create:", text);
+      setUIMessage("Server returned non-JSON for offense-create", true);
       return;
     }
 
-    try {
-      const res = await fetch("/api/offense-create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vehicleId: vehicle.id,
-          penaltyId,
-        }),
-      });
+    if (data.success) {
+      setUIMessage(data.message || "Offense created.", false);
 
-      const text = await res.text();
-      let data: any;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error("Non-JSON from /api/offense-create:", text);
-        setUIMessage("Server returned non-JSON for offense-create", true);
-        return;
+      // 🔁 reload page to clear state & remove Select buttons
+      if (typeof window !== "undefined") {
+        window.location.reload();
       }
-
-      if (data.success) {
-        setUIMessage(data.message || "Offense created.", false);
-        await loadPenaltiesForVehicle(vehicle.id);
-      } else {
-        setUIMessage(data.message || "Could not create offense.", true);
-      }
-    } catch (err) {
-      console.error(err);
-      setUIMessage("Network error calling /api/offense-create", true);
+    } else {
+      setUIMessage(data.message || "Could not create offense.", true);
     }
+  } catch (err) {
+    console.error(err);
+    setUIMessage("Network error calling /api/offense-create", true);
   }
+}
+
 
   function initScanner() {
     const win = window as any;
