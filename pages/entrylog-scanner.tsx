@@ -57,6 +57,10 @@ export default function EntrylogScannerPage() {
       return;
     }
 
+    // 🧽 CLEAR any leftover UI (old camera dropdown, etc.)
+    const reader = document.getElementById("reader");
+    if (reader) reader.innerHTML = "";
+
     // 🔒 lock to prevent rapid multiple scans
     let scanLocked = false;
     const COOLDOWN_MS = 3000; // 3 seconds

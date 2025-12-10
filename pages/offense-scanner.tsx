@@ -160,6 +160,10 @@ const OffenseScannerPage = () => {
       return;
     }
 
+    // 🧽 CLEAR any leftover UI from old Html5QrcodeScanner
+    const reader = document.getElementById("reader");
+    if (reader) reader.innerHTML = "";
+
     // If already running, stop and clear
     if (win._offenseQrInstance) {
       try {
