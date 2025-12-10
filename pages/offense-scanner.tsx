@@ -33,6 +33,30 @@ const OffenseScannerPage = () => {
   const [message, setMessage] = useState<string>("");
   const [vehicleIdInput, setVehicleIdInput] = useState<string>("");
 
+  function setUIMessage(msg: string, isError: boolean) {
+    setMessage((isError ? "⚠️ " : "✅ ") + msg);
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const win = window as any;
+
+    // cleanup: stop camera when leaving page / hot reload
+    return () => {
+      if (win._offenseQrInstance) {
+        try {
+          win._offenseQrInstance
+            .stop()
+            .then(() => win._offenseQrInstance.clear())
+            .catch(() => {});
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -52,10 +76,6 @@ const OffenseScannerPage = () => {
     };
     document.body.appendChild(script);
   }, []);
-
-  function setUIMessage(msg: string, isError: boolean) {
-    setMessage((isError ? "⚠️ " : "✅ ") + msg);
-  }
 
   async function loadPenaltiesForVehicle(vehicleId: string | number) {
     try {
@@ -133,17 +153,28 @@ const OffenseScannerPage = () => {
 
   function initScanner() {
     const win = window as any;
-    const Html5QrcodeScanner = win.Html5QrcodeScanner;
-    if (!Html5QrcodeScanner) {
-      console.error("Html5QrcodeScanner not found on window");
+    const Html5Qrcode = win.Html5Qrcode;
+
+    if (!Html5Qrcode) {
+      console.error("Html5Qrcode not found on window");
       return;
     }
 
-    const scanner = new Html5QrcodeScanner(
-      "reader",
-      { fps: 10, qrbox: 250 },
-      false
-    );
+    // If already running, stop and clear
+    if (win._offenseQrInstance) {
+      try {
+        win._offenseQrInstance
+          .stop()
+          .then(() => win._offenseQrInstance.clear())
+          .catch(() => {});
+      } catch {
+        // ignore
+      }
+    }
+
+    // Use Html5Qrcode directly – no default UI, no camera selection dropdown
+    const qr = new Html5Qrcode("reader");
+    win._offenseQrInstance = qr;
 
     const onScanSuccess = (decodedText: string) => {
       setVehicleIdInput(decodedText);
@@ -158,13 +189,27 @@ const OffenseScannerPage = () => {
       // ignore noisy failures
     };
 
-    scanner.render(onScanSuccess, onScanFailure);
+    qr
+      .start(
+        { facingMode: "environment" }, // 🔒 BACK CAMERA ONLY
+        {
+          fps: 10,
+          qrbox: 250,
+        },
+        onScanSuccess,
+        onScanFailure
+      )
+      .catch((err: any) => {
+        console.error("Error starting Html5Qrcode:", err);
+        setUIMessage("Could not start camera scanner.", true);
+      });
   }
 
   return (
     <div className={styles.container}>
       <h2 className={styles.title}>Offense Scanner</h2>
 
+      {/* video + scan area */}
       <div id="reader" className={styles.scannerWrapper} />
 
       <div className={styles.field}>
@@ -213,7 +258,9 @@ const OffenseScannerPage = () => {
             <div key={p._id} className={styles.penaltyItem}>
               <div className={styles.penaltyDetails}>
                 <div className={styles.penaltyName}>{p.type}</div>
-                <div className={styles.penaltyAmount}>Amount: ₱{p.amount.toLocaleString()}</div>
+                <div className={styles.penaltyAmount}>
+                  Amount: ₱{p.amount.toLocaleString()}
+                </div>
               </div>
               <button
                 className={`${styles.btn} ${styles.btnPenalty}`}
@@ -233,8 +280,19 @@ const OffenseScannerPage = () => {
             const d = o.date ? new Date(o.date) : null;
             return (
               <div key={o._id} className={styles.offenseItem}>
-                <strong>#{o._id}</strong> – Penalty ID: {o.penaltyId}, Status: <span style={{ fontWeight: 600 }}>{o.status}</span>
-                {d ? <div style={{ fontSize: '0.85rem', marginTop: '0.25rem', color: '#64748b' }}>{d.toLocaleString()}</div> : null}
+                <strong>#{o._id}</strong> – Penalty ID: {o.penaltyId}, Status:{" "}
+                <span style={{ fontWeight: 600 }}>{o.status}</span>
+                {d ? (
+                  <div
+                    style={{
+                      fontSize: "0.85rem",
+                      marginTop: "0.25rem",
+                      color: "#64748b",
+                    }}
+                  >
+                    {d.toLocaleString()}
+                  </div>
+                ) : null}
               </div>
             );
           })}
