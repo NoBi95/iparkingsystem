@@ -2,34 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import clientPromise from "../../lib/mongo";
 import { Db } from "mongodb";
-
-interface CounterDoc {
-  _id: string;
-  seq: number;
-}
-
-/**
- * Simple auto-increment sequence using "counters" collection.
- * One counter document per name, e.g. { _id: "visitorVehicles", seq: 42 }
- */
-async function getNextSequence(db: Db, name: string): Promise<number> {
-  const counters = db.collection<CounterDoc>("counters");
-
-  // Check if counter exists
-  const doc = await counters.findOne({ _id: name });
-
-  if (!doc) {
-    // First time: create with seq = 1
-    const first: CounterDoc = { _id: name, seq: 1 };
-    await counters.insertOne(first);
-    return 1;
-  }
-
-  // Next times: increment
-  const newSeq = (doc.seq ?? 0) + 1;
-  await counters.updateOne({ _id: name }, { $set: { seq: newSeq } });
-  return newSeq;
-}
+import { getNextSequence } from "../../lib/getNextSequence.js";
 
 export default async function handler(
   req: NextApiRequest,
@@ -131,17 +104,33 @@ async function handleEntry(req: NextApiRequest, res: NextApiResponse, db: Db) {
 
   // 3️⃣ Create entrylogs row with auto-increment id
   const entryLogId = await getNextSequence(db, "entrylogs");
+  const entryTime = new Date();
   const entryDoc = {
     _id: entryLogId, // int
     visitorId,
-    entryTime: new Date(),
+    entryTime,
     exitTime: null,
     slotId: slot._id,
   };
 
   await db.collection("entrylogs").insertOne(entryDoc as any);
 
-  // 4️⃣ Mark slot as occupied
+  // 4️⃣ Create parking record in parkingRecords collection
+  const parkingRecordId = await getNextSequence(db, "parkingRecords");
+  const parkingRecord = {
+    _id: parkingRecordId,
+    name: driverName || plateNumber, // Use driver name if available, otherwise plate number
+    type: "visitor", // Visitor type
+    entryTime,
+    exitTime: null,
+    slotId: slot._id,
+    entryLogId: entryLogId, // Link to entrylog
+    visitorId: visitorId,
+  };
+
+  await db.collection("parkingRecords").insertOne(parkingRecord as any);
+
+  // 5️⃣ Mark slot as occupied
   await db.collection("parkingSlots").updateOne(
     { _id: slot._id },
     { $set: { status: "occupied" } }
@@ -203,7 +192,13 @@ async function handleExit(req: NextApiRequest, res: NextApiResponse, db: Db) {
     { $set: { exitTime } }
   );
 
-  // 4️⃣ Free parking slot
+  // 4️⃣ Update parking record with exit time
+  await db.collection("parkingRecords").updateOne(
+    { entryLogId: entryLog._id } as any,
+    { $set: { exitTime } }
+  );
+
+  // 5️⃣ Free parking slot
   if (entryLog.slotId != null) {
     await db.collection("parkingSlots").updateOne(
       { _id: entryLog.slotId },

@@ -1,5 +1,8 @@
 // pages/offense-scanner.tsx
+"use client";
+
 import { useEffect, useState } from "react";
+import styles from "../styles/Scanner.module.css";
 
 interface Vehicle {
   id: number;
@@ -159,43 +162,61 @@ const OffenseScannerPage = () => {
   }
 
   return (
-    <div className="container">
-      <h2 className="title">Offense Scanner</h2>
+    <div className={styles.container}>
+      <h2 className={styles.title}>Offense Scanner</h2>
 
-      <div id="reader" />
+      <div id="reader" className={styles.scannerWrapper} />
 
-      <div className="field">
-        <label className="label">Last Vehicle ID</label>
-        <input type="text" value={vehicleIdInput} readOnly />
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="vehicleIdInput">
+          Last Vehicle ID
+        </label>
+        <input
+          id="vehicleIdInput"
+          type="text"
+          value={vehicleIdInput}
+          readOnly
+          className={styles.input}
+        />
       </div>
 
       {vehicle && (
-        <div className="vehicle-info">
-          <strong>Vehicle:</strong> {vehicle.plateNumber || vehicle.id}
-          <br />
-          Type: {vehicle.vehicleType || "N/A"}
-          <br />
-          Color: {vehicle.color || "N/A"}
-          <br />
-          Status: {vehicle.status || "N/A"}
+        <div className={styles.vehicleInfo}>
+          <strong>Vehicle Information</strong>
+          <div>
+            <span className={styles.vehicleInfoLabel}>Plate Number:</span>
+            <span>{vehicle.plateNumber || vehicle.id}</span>
+          </div>
+          <div>
+            <span className={styles.vehicleInfoLabel}>Type:</span>
+            <span>{vehicle.vehicleType || "N/A"}</span>
+          </div>
+          <div>
+            <span className={styles.vehicleInfoLabel}>Color:</span>
+            <span>{vehicle.color || "N/A"}</span>
+          </div>
+          <div>
+            <span className={styles.vehicleInfoLabel}>Status:</span>
+            <span>{vehicle.status || "N/A"}</span>
+          </div>
         </div>
       )}
 
-      <div className="penalties">
+      <div className={styles.penalties}>
         <h4>Apply Penalty</h4>
         {penalties.length === 0 ? (
-          <p className="no-penalties">
+          <p className={styles.noPenalties}>
             <em>No penalties defined (except Expired Registration).</em>
           </p>
         ) : (
           penalties.map((p) => (
-            <div key={p._id} className="penalty-item">
-              <div>
-                <div className="penalty-name">{p.type}</div>
-                <div className="penalty-amount">Amount: {p.amount}</div>
+            <div key={p._id} className={styles.penaltyItem}>
+              <div className={styles.penaltyDetails}>
+                <div className={styles.penaltyName}>{p.type}</div>
+                <div className={styles.penaltyAmount}>Amount: ₱{p.amount.toLocaleString()}</div>
               </div>
               <button
-                className="btn btn-penalty"
+                className={`${styles.btn} ${styles.btnPenalty}`}
                 onClick={() => handleCreateOffense(p._id)}
               >
                 Select
@@ -206,14 +227,14 @@ const OffenseScannerPage = () => {
       </div>
 
       {offenses.length > 0 && (
-        <div className="offense-list">
+        <div className={styles.offenseList}>
           <h4>Recent Offenses</h4>
           {offenses.map((o) => {
             const d = o.date ? new Date(o.date) : null;
             return (
-              <div key={o._id} className="offense-item">
-                #{o._id} – PenaltyId: {o.penaltyId}, Status: {o.status}
-                {d ? <> ({d.toLocaleString()})</> : null}
+              <div key={o._id} className={styles.offenseItem}>
+                <strong>#{o._id}</strong> – Penalty ID: {o.penaltyId}, Status: <span style={{ fontWeight: 600 }}>{o.status}</span>
+                {d ? <div style={{ fontSize: '0.85rem', marginTop: '0.25rem', color: '#64748b' }}>{d.toLocaleString()}</div> : null}
               </div>
             );
           })}
@@ -222,115 +243,13 @@ const OffenseScannerPage = () => {
 
       {message && (
         <p
-          className={
-            "message " +
-            (message.startsWith("✅") ? "success" : "error")
-          }
+          className={`${styles.message} ${
+            message.startsWith("✅") ? styles.success : styles.error
+          }`}
         >
           {message}
         </p>
       )}
-
-      <style jsx>{`
-        .container {
-          max-width: 520px;
-          margin: 40px auto;
-          padding: 20px;
-          border-radius: 12px;
-          background: #ffffff;
-          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-          font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-            sans-serif;
-        }
-        .title {
-          text-align: center;
-          color: #1e3a8a;
-          margin-bottom: 20px;
-        }
-        #reader {
-          width: 100%;
-          margin-bottom: 15px;
-        }
-        .field {
-          margin: 10px 0;
-        }
-        .label {
-          font-size: 0.9rem;
-          color: #475569;
-          margin-bottom: 4px;
-          display: block;
-        }
-        input {
-          width: 100%;
-          padding: 8px 10px;
-          border-radius: 6px;
-          border: 1px solid #cbd5e1;
-          font-size: 1rem;
-        }
-        .vehicle-info {
-          margin-top: 10px;
-          font-size: 0.9rem;
-          color: #0f172a;
-          background: #eff6ff;
-          padding: 8px;
-          border-radius: 8px;
-        }
-        .penalties {
-          margin-top: 16px;
-          border-top: 1px solid #e2e8f0;
-          padding-top: 12px;
-        }
-        .penalty-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 0;
-          border-bottom: 1px dashed #e2e8f0;
-        }
-        .penalty-name {
-          font-size: 0.95rem;
-          color: #0f172a;
-        }
-        .penalty-amount {
-          font-size: 0.85rem;
-          color: #64748b;
-          margin-right: 8px;
-        }
-        .btn {
-          padding: 6px 10px;
-          border-radius: 6px;
-          border: none;
-          font-size: 0.9rem;
-          cursor: pointer;
-        }
-        .btn-penalty {
-          background-color: #3b82f6;
-          color: white;
-        }
-        .btn-penalty:hover {
-          background-color: #2563eb;
-        }
-        .offense-list {
-          margin-top: 12px;
-          font-size: 0.85rem;
-          color: #475569;
-        }
-        .offense-item {
-          padding: 4px 0;
-          border-bottom: 1px dotted #e5e7eb;
-        }
-        .message {
-          margin-top: 12px;
-          text-align: center;
-          font-weight: 500;
-        }
-        .success {
-          color: #16a34a;
-        }
-        .error {
-          color: #dc2626;
-        }
-      `}</style>
     </div>
   );
 };

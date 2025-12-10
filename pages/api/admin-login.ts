@@ -22,8 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const collections = await db.listCollections().toArray();
     console.log("COLLECTIONS IN DB:", collections.map((c) => c.name));
 
-    // 2) Show up to 10 docs from the "admin" collection
-    const allAdmins = await db.collection("admin").find().limit(10).toArray();
+    // 2) Show up to 10 docs from the "admins" collection
+    const allAdmins = await db.collection("admins").find().limit(10).toArray();
     console.log("ADMINS FROM CODE:", allAdmins);
 
     // 3) Username-only query

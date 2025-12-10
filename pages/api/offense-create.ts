@@ -1,6 +1,7 @@
 // pages/api/offense-create.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import clientPromise from "../../lib/mongo";
+import { getNextSequence } from "../../lib/getNextSequence.js";
 
 export default async function handler(
   req: NextApiRequest,
@@ -43,6 +44,11 @@ export default async function handler(
     const penaltiesCol = db.collection<any>("penalty");
     const offensesCol = db.collection<any>("offenses");
 
+    // 🔹 new collections for logs + users
+    const usersCol = db.collection<any>("users");
+    const logsCol = db.collection<any>("logs");
+
+    // 🔹 find vehicle
     const vehicle = await vehicles.findOne({ _id: vId } as any);
     if (!vehicle) {
       return res
@@ -50,6 +56,7 @@ export default async function handler(
         .json({ success: false, message: "Vehicle not found" });
     }
 
+    // 🔹 find penalty
     const penalty = await penaltiesCol.findOne({ _id: pId } as any);
     if (!penalty) {
       return res
@@ -65,18 +72,15 @@ export default async function handler(
       });
     }
 
-    // ✅ get next integer _id directly from offenses collection
-    const lastOffenseArr = await offensesCol
-      .find({})
-      .sort({ _id: -1 })
-      .limit(1)
-      .toArray();
+    // 🔹 try to get user (via vehicle.userId or vehicle.userID)
+    const userId = (vehicle as any).userId ?? (vehicle as any).userID;
+    let user: any = null;
+    if (userId !== undefined && userId !== null) {
+      user = await usersCol.findOne({ _id: userId } as any);
+    }
 
-    const lastOffense = lastOffenseArr[0];
-    const offenseId =
-      lastOffense && typeof lastOffense._id === "number"
-        ? lastOffense._id + 1
-        : 1;
+    // ✅ get next integer _id for offenses using centralized helper
+    const offenseId = await getNextSequence(db, "offenses");
 
     const now = new Date();
 
@@ -88,7 +92,25 @@ export default async function handler(
       date: now,
     };
 
+    // 🔹 insert into offenses
     await offensesCol.insertOne(offenseDoc as any);
+
+    // ✅ get next integer _id for logs using centralized helper
+    const logId = await getNextSequence(db, "logs");
+
+    // 🔹 insert into logs (userName, penaltyType, amount, status = Pending)
+    const logDoc = {
+      _id: logId,                    // 👈 integer _id, not ObjectId
+      offenseId: offenseId,
+      vehicleId: vehicle._id,
+      userName: user?.name ?? "",    // falls back to empty string if no user
+      penaltyType: penalty.type,
+      amount: penalty.amount,
+      status: offenseDoc.status,     // "Pending"
+      date: now,
+    };
+
+    await logsCol.insertOne(logDoc as any);
 
     return res.status(200).json({
       success: true,
@@ -96,12 +118,14 @@ export default async function handler(
         vehicle.plateNumber ?? vehicle.plate ?? vehicle._id
       }`,
       offense: offenseDoc,
+      log: logDoc,
       vehicle: {
         id: vehicle._id,
         plateNumber: vehicle.plateNumber ?? vehicle.plate ?? "",
         vehicleType: vehicle.vehicleType ?? vehicle.type ?? "",
       },
       penalty,
+      user,
     });
   } catch (err: any) {
     console.error("Error in /api/offense-create:", err);

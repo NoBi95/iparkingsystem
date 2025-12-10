@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect } from "react";
+import styles from "../styles/Scanner.module.css";
 
 export default function EntrylogScannerPage() {
   useEffect(() => {
@@ -110,65 +111,23 @@ export default function EntrylogScannerPage() {
   }, []);
 
   return (
-    <div className="container">
-      <h2 className="title">EntryLog Scanner</h2>
-      <div id="reader" />
+    <div className={styles.container}>
+      <h2 className={styles.title}>EntryLog Scanner</h2>
+      <div id="reader" className={styles.scannerWrapper} />
 
-      <div className="field">
-        <label className="label">Last Vehicle ID</label>
-        <input id="vehicleId" type="text" readOnly />
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="vehicleId">
+          Last Vehicle ID
+        </label>
+        <input
+          id="vehicleId"
+          type="text"
+          readOnly
+          className={styles.input}
+        />
       </div>
 
-      <p id="message" className="message" />
-
-      <style jsx>{`
-        .container {
-          max-width: 480px;
-          margin: 40px auto;
-          padding: 20px;
-          border-radius: 12px;
-          background: #ffffff;
-          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-          font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-            sans-serif;
-        }
-        .title {
-          text-align: center;
-          color: #1e3a8a;
-          margin-bottom: 20px;
-        }
-        #reader {
-          width: 100%;
-          margin-bottom: 15px;
-        }
-        .field {
-          margin: 10px 0;
-        }
-        .label {
-          font-size: 0.9rem;
-          color: #475569;
-          margin-bottom: 4px;
-          display: block;
-        }
-        input {
-          width: 100%;
-          padding: 8px 10px;
-          border-radius: 6px;
-          border: 1px solid #cbd5e1;
-          font-size: 1rem;
-        }
-        .message {
-          margin-top: 12px;
-          text-align: center;
-          font-weight: 500;
-        }
-        .message.success {
-          color: #16a34a;
-        }
-        .message.error {
-          color: #dc2626;
-        }
-      `}</style>
+      <p id="message" className={styles.message} />
     </div>
   );
 }

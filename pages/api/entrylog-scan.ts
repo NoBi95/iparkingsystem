@@ -2,23 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import clientPromise from "../../lib/mongo";
 import { Db } from "mongodb";
-
-// Auto-increment helper
-async function getNextSequence(db: Db, name: string): Promise<number> {
-  const counters = db.collection<any>("counters");
-
-  const doc = await counters.findOne({ _id: name } as any);
-
-  if (!doc) {
-    const first = { _id: name, seq: 1 };
-    await counters.insertOne(first as any);
-    return 1;
-  }
-
-  const newSeq = (doc.seq ?? 0) + 1;
-  await counters.updateOne({ _id: name } as any, { $set: { seq: newSeq } });
-  return newSeq;
-}
+import { getNextSequence } from "../../lib/getNextSequence.js";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -139,6 +123,36 @@ async function handleEntry(db: Db, res: NextApiResponse, vehicle: any) {
 
   await db.collection("entrylogs").insertOne(entryDoc as any);
 
+  // 🔹 Get user information for registered users
+  let userName = "";
+  let userType = "user"; // default to "user"
+  const userId = (vehicle as any).userId ?? (vehicle as any).userID;
+  
+  if (userId !== undefined && userId !== null) {
+    const usersCol = db.collection<any>("users");
+    const user = await usersCol.findOne({ _id: userId } as any);
+    if (user) {
+      userName = user.name || "";
+      // Determine type: "staff" or "user" based on userType field
+      userType = (user.userType || "").toLowerCase() === "staff" ? "staff" : "user";
+    }
+  }
+
+  // 🔹 Create parking record in parkingRecords collection
+  const parkingRecordId = await getNextSequence(db, "parkingRecords");
+  const parkingRecord = {
+    _id: parkingRecordId,
+    name: userName || vehicle.plateNumber || vehicle.plate || `Vehicle ${vehicle._id}`,
+    type: userType, // "user", "staff", or "visitor"
+    entryTime: now,
+    exitTime: null,
+    slotId: slot._id,
+    entryLogId: entryLogId, // Link to entrylog
+    vehicleId: vehicle._id,
+  };
+
+  await db.collection("parkingRecords").insertOne(parkingRecord as any);
+
   await parkingSlots.updateOne(
     { _id: slot._id } as any,
     { $set: { status: "occupied" } }
@@ -164,6 +178,12 @@ async function handleExit(db: Db, res: NextApiResponse, vehicle: any, activeLog:
 
   await db.collection("entrylogs").updateOne(
     { _id: activeLog._id } as any,
+    { $set: { exitTime } }
+  );
+
+  // 🔹 Update parking record with exit time
+  await db.collection("parkingRecords").updateOne(
+    { entryLogId: activeLog._id } as any,
     { $set: { exitTime } }
   );
 
