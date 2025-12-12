@@ -73,30 +73,28 @@ async function handleEntry(
 ) {
   const now = new Date();
 
-  // 👇 determine if vehicle is inactive / expired
+  // determine if vehicle is inactive / expired
   let isInactive = false;
 
   if (vehicle.status && vehicle.status.toLowerCase() === "inactive") {
     isInactive = true;
   }
-
   if (vehicle.expiryDate && new Date(vehicle.expiryDate) < now) {
     isInactive = true;
   }
-
   if (vehicle.validUntil && new Date(vehicle.validUntil) < now) {
     isInactive = true;
   }
 
-  // this will hold the created offense doc (if any)
+  // offense document (if any)
   let offenseDoc: any = null;
 
-  // 🔴 IF INACTIVE/EXPIRED → CREATE OFFENSE WITH "Expired Registration"
   if (isInactive) {
     const penaltiesCol = db.collection<any>("penalty");
     const offensesCol = db.collection<any>("offenses");
+    const logsCol = db.collection<any>("logs"); // logs collection
 
-    // find the Expired Registration penalty
+    // find Expired Registration penalty
     const penalty = await penaltiesCol.findOne(
       { type: "Expired Registration" } as any
     );
@@ -108,24 +106,37 @@ async function handleEntry(
         _id: offenseId,
         vehicleId: vehicle._id,
         status: "Pending",
-        penaltyId: penalty._id, // 👈 correct penalty id
+        penaltyId: penalty._id,
         date: now,
       };
 
       await offensesCol.insertOne(offenseDoc as any);
+
+      // create a log entry
+      const logId = await getNextSequence(db, "logs");
+
+      const logDoc = {
+        _id: logId,
+        offenseId: offenseId,
+        vehicleId: vehicle._id,
+        userName: vehicle.userName || "", // fallback, will update if registered
+        penaltyType: "Expired Registration",
+        amount: penalty.amount || 0,
+        status: "Pending",
+        date: now,
+      };
+
+      await logsCol.insertOne(logDoc as any);
     }
   }
 
-  // 🔵 slot type: car or motorcycle
+  // determine slot type
   const vType = (vehicle.vehicleType || vehicle.type || "").toLowerCase();
   const slotType = vType === "motorcycle" ? "motorcycle" : "car";
 
   const parkingSlots = db.collection<any>("parkingSlots");
   const slot = await parkingSlots.findOne(
-    {
-      slotType,
-      status: "available",
-    } as any
+    { slotType, status: "available" } as any
   );
 
   if (!slot) {
@@ -151,51 +162,40 @@ async function handleEntry(
 
   await db.collection<any>("entrylogs").insertOne(entryDoc as any);
 
-  // 🔹 Get user information for registered users
+  // get user info if registered
   let userName = "";
-  let userType = "user"; // default to "user"
-  const userId = (vehicle as any).userId ?? (vehicle as any).userID;
+  let userType = "user";
+  const userId = vehicle.userId ?? vehicle.userID;
 
   if (userId !== undefined && userId !== null) {
     const usersCol = db.collection<any>("users");
     const user = await usersCol.findOne({ _id: userId } as any);
     if (user) {
       userName = user.name || "";
-      // Determine type: "staff" or "user" based on userType field
-      userType =
-        (user.userType || "").toLowerCase() === "staff"
-          ? "staff"
-          : "user";
+      userType = (user.userType || "").toLowerCase() === "staff" ? "staff" : "user";
     }
   }
 
-  // 🔹 Create parking record in parkingRecords collection
+  // create parking record
   const parkingRecordId = await getNextSequence(db, "parkingRecords");
   const parkingRecord = {
     _id: parkingRecordId,
-    name:
-      userName ||
-      vehicle.plateNumber ||
-      vehicle.plate ||
-      `Vehicle ${vehicle._id}`,
-    type: userType, // "user", "staff", or "visitor"
+    name: userName || vehicle.plateNumber || vehicle.plate || `Vehicle ${vehicle._id}`,
+    type: userType,
     entryTime: now,
     exitTime: null,
     slotId: slot._id,
-    entryLogId: entryLogId, // Link to entrylog
+    entryLogId: entryLogId,
     vehicleId: vehicle._id,
   };
 
-  await db.collection<any>("parkingRecords").insertOne(
-    parkingRecord as any
-  );
+  await db.collection<any>("parkingRecords").insertOne(parkingRecord as any);
 
   await parkingSlots.updateOne(
     { _id: slot._id } as any,
     { $set: { status: "occupied" } }
   );
 
-  // optional: slightly nicer message if offense was created
   let message = `Entry recorded. Assigned slot #${slot._id}`;
   if (isInactive && offenseDoc) {
     message = `Entry recorded. Offense "Expired Registration" created. Assigned slot #${slot._id}`;
@@ -212,7 +212,7 @@ async function handleEntry(
       entryTime: now,
     },
     inactive: isInactive,
-    offense: offenseDoc, // null if active, offense doc if inactive
+    offense: offenseDoc,
   });
 }
 
@@ -229,7 +229,6 @@ async function handleExit(
     { $set: { exitTime } }
   );
 
-  // 🔹 Update parking record with exit time
   await db.collection<any>("parkingRecords").updateOne(
     { entryLogId: activeLog._id } as any,
     { $set: { exitTime } }

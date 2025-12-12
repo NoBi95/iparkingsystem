@@ -9,46 +9,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { username, password } = req.body as { username: string; password: string };
 
-  console.log("LOGIN BODY:", { username });
-
   try {
     const client = await clientPromise;
-
-    // 👇 VERY IMPORTANT: use the correct DB name here
     const db = client.db("park");
-    console.log("DB NAME FROM CODE:", db.databaseName);
 
-    // 1) Show all collections in this DB
-    const collections = await db.listCollections().toArray();
-    console.log("COLLECTIONS IN DB:", collections.map((c) => c.name));
-
-    // 2) Show up to 10 docs from the "admins" collection
-    const allAdmins = await db.collection("admins").find().limit(10).toArray();
-    console.log("ADMINS FROM CODE:", allAdmins);
-
-    // 3) Username-only query
+    // Find admin by username
     const admin = await db.collection("admins").findOne({ username });
-    console.log("FOUND ADMIN (username only):", admin);
-
     if (!admin) {
-      console.log("RESULT: NO ADMIN MATCHED QUERY (username only)");
-      return res.status(401).json({
+      return res.status(401).json({ success: false, message: "Admin not found or inactive" });
+    }
+
+    // 1️⃣ Check if role is allowed
+    const allowedRoles = ["SuperAdmin", "Moderator"];
+    if (!allowedRoles.includes(admin.role)) {
+      return res.status(403).json({
         success: false,
-        message: "Admin not found or inactive",
+        message: "Access denied: insufficient role",
       });
     }
 
-    // 4) If that works, test password
+    // 2️⃣ Check password
     const valid = await bcrypt.compare(password, admin.password);
-    console.log("PASSWORD VALID?", valid);
-
     if (!valid) {
-      console.log("RESULT: PASSWORD MISMATCH");
       return res.status(401).json({ success: false, message: "Incorrect password" });
     }
 
-    console.log("RESULT: LOGIN OK");
-
+    // ✅ Login success
     return res.status(200).json({
       success: true,
       admin: {
