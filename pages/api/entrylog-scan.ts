@@ -86,14 +86,21 @@ async function handleEntry(
     isInactive = true;
   }
 
+  const usersCol = db.collection<any>("users");
+  const penaltiesCol = db.collection<any>("penalty");
+  const offensesCol = db.collection<any>("offenses");
+  const logsCol = db.collection<any>("logs");
+
+  // get user info if registered
+  const userId = vehicle.userId ?? vehicle.userID;
+  const user = userId ? await usersCol.findOne({ _id: userId } as any) : null;
+  const userName = user?.name || vehicle.userName || vehicle.plateNumber || `Vehicle ${vehicle._id}`;
+  const userType = user?.userType?.toLowerCase() === "staff" ? "staff" : "user";
+
   // offense document (if any)
   let offenseDoc: any = null;
 
   if (isInactive) {
-    const penaltiesCol = db.collection<any>("penalty");
-    const offensesCol = db.collection<any>("offenses");
-    const logsCol = db.collection<any>("logs"); // logs collection
-
     // find Expired Registration penalty
     const penalty = await penaltiesCol.findOne(
       { type: "Expired Registration" } as any
@@ -112,14 +119,14 @@ async function handleEntry(
 
       await offensesCol.insertOne(offenseDoc as any);
 
-      // create a log entry
+      // create a log entry including the proper userName
       const logId = await getNextSequence(db, "logs");
 
       const logDoc = {
         _id: logId,
         offenseId: offenseId,
         vehicleId: vehicle._id,
-        userName: vehicle.userName || "", // fallback, will update if registered
+        userName, // ✅ now includes proper name
         penaltyType: "Expired Registration",
         amount: penalty.amount || 0,
         status: "Pending",
@@ -162,25 +169,11 @@ async function handleEntry(
 
   await db.collection<any>("entrylogs").insertOne(entryDoc as any);
 
-  // get user info if registered
-  let userName = "";
-  let userType = "user";
-  const userId = vehicle.userId ?? vehicle.userID;
-
-  if (userId !== undefined && userId !== null) {
-    const usersCol = db.collection<any>("users");
-    const user = await usersCol.findOne({ _id: userId } as any);
-    if (user) {
-      userName = user.name || "";
-      userType = (user.userType || "").toLowerCase() === "staff" ? "staff" : "user";
-    }
-  }
-
   // create parking record
   const parkingRecordId = await getNextSequence(db, "parkingRecords");
   const parkingRecord = {
     _id: parkingRecordId,
-    name: userName || vehicle.plateNumber || vehicle.plate || `Vehicle ${vehicle._id}`,
+    name: userName,
     type: userType,
     entryTime: now,
     exitTime: null,
