@@ -126,8 +126,8 @@ async function handleEntry(
         _id: logId,
         offenseId: offenseId,
         vehicleId: vehicle._id,
-        userName, // ✅ now includes proper name
-        penaltyType: "Expired Registration",
+        userName, // ✅ always includes name
+        penaltyType: penalty.type,
         amount: penalty.amount || 0,
         status: "Pending",
         date: now,
